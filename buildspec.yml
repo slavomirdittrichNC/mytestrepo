@@ -7,6 +7,8 @@ phases:
   build:
     commands:
        - pip install -r requirements.txt -t .
+       - python encrypt-template.py > cfn-encrypt.json
+       - python datadog-template.py > cfn-datadog.json
 
 artifacts:
   files:
