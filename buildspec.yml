@@ -6,8 +6,8 @@ env:
 phases:
   build:
     commands:
-       - pip install -r requirements.txt -t .
        - cd tropo
+       - pip install -r ../requirements.txt -t .
        - python dummy.py > ../dummy.json
 
 artifacts:
