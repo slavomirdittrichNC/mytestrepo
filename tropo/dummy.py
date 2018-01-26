@@ -15,7 +15,8 @@ t = Template()
 dummy_type_parameter = t.add_parameter(Parameter(
     "DummyTypeParameter",
     Type="String",
-    Description="Type of dummy stack [UAT, PROD] from config-uat.json and config-prod.json files."
+    Description="Type of dummy stack [UAT, PROD] from config-uat.json and config-prod.json files.",
+    Default=""
 ))
 
 dummy_resource = t.add_resource(cloudformation.WaitConditionHandle(
