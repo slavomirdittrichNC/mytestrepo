@@ -1,5 +1,5 @@
 {
   "Parameters": {
-    "DummyType": "DummyType1"
+    "DummyTypeParameter": "DummyType1"
   }
 }
