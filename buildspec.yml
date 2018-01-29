@@ -13,5 +13,4 @@ phases:
 artifacts:
   files:
     - 'dummy.json'
-    - 'config-uat.json'
-    - 'config-prod.json'
+    - 'config.json'
