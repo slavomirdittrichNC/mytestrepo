@@ -20,32 +20,33 @@ def main():
     # INIT section
 
     template = Template()
+    projectName = "dummy-mytestrepo"
 
     # PARAMETERS section
 
-    oauth_token_parameter = template.add_parameter(Parameter(
-        "OauthToken",
+    github_oauth_token_parameter = template.add_parameter(Parameter(
+        "GithubOauthToken",
         Type="String",
-        Description="Oauth token from github",
+        Description="Github OAuthToken",
         NoEcho=True,
     ))
 
     github_owner_parameter = template.add_parameter(Parameter(
         "GithubOwner",
         Type="String",
-        Description="The github organization",
+        Description="Github owner",
         Default="cta-int",
     ))
 
-    branch_parameter = template.add_parameter(Parameter(
-        "Branch",
+    github_branch_parameter = template.add_parameter(Parameter(
+        "GithubBranch",
         Type="String",
-        Description="Git branch",
+        Description="Github branch",
         Default="master",
     ))
 
-    repository_parameter = template.add_parameter(Parameter(
-        "Repository",
+    github_repository_parameter = template.add_parameter(Parameter(
+        "GithubRepository",
         Type="String",
         Description="Github repository",
         Default="aws-bootstrap",
@@ -62,7 +63,7 @@ def main():
             )]
     ))
 
-    artifact_store_S3_bucket = template.add_resource(s3.Bucket(
+    artifact_store_s3_bucket = template.add_resource(s3.Bucket(
         "ArtifactStoreS3Bucket",
         AccessControl=s3.Private,
     ))
@@ -162,6 +163,16 @@ def main():
                         Statement(
                             Effect=Allow,
                             Action=[
+                                Action("lambda", "ListFunctions"),
+                                Action("lambda", "InvokeFunction"),
+                            ],
+                            Resource=[
+                                "*",
+                            ]
+                        ),
+                        Statement(
+                            Effect=Allow,
+                            Action=[
                                 Action("s3", "PutObject"),
                                 Action("s3", "GetObject"),
                                 Action("s3", "GetObjectVersion"),
@@ -169,20 +180,8 @@ def main():
                             ],
                             Resource=[
                                 Sub("arn:aws:s3:::codepipeline-${AWS::Region}-*"),
-                                GetAtt(artifact_store_S3_bucket, "Arn"),
-                                Join("", [
-                                    GetAtt(artifact_store_S3_bucket, "Arn"),
-                                    "/*"])
-                            ]
-                        ),
-                        Statement(
-                            Effect=Allow,
-                            Action=[
-                                Action("lambda", "ListFunctions"),
-                                Action("lambda", "InvokeFunction"),
-                            ],
-                            Resource=[
-                                "*"
+                                GetAtt(artifact_store_s3_bucket, "Arn"),
+                                Join("", [GetAtt(artifact_store_s3_bucket, "Arn"), "/*"]),
                             ]
                         ),
                         Statement(
@@ -225,10 +224,8 @@ def main():
                                 Action("s3", "*")
                             ],
                             Resource=[
-                                GetAtt(artifact_store_S3_bucket, "Arn"),
-                                Join("", [
-                                    GetAtt(artifact_store_S3_bucket, "Arn"),
-                                    "/*"])
+                                GetAtt(artifact_store_s3_bucket, "Arn"),
+                                Join("", [GetAtt(artifact_store_s3_bucket, "Arn"), "/*"]),
                             ]
                         ),
                         Statement(
@@ -237,30 +234,7 @@ def main():
                                 Action("sns", "Publish"),
                             ],
                             Resource=[
-                                Ref(approve_topic)
-                            ]
-                        ),
-                        Statement(
-                            Effect=Allow,
-                            Action=[
-                                Action("cloudformation", "CreateChangeSet"),
-                                Action("cloudformation", "CreateStack"),
-                                Action("cloudformation", "CreateUploadBucket"),
-                                Action("cloudformation", "DeleteChangeSet"),
-                                Action("cloudformation", "DeleteStack"),
-                                Action("cloudformation", "Describe*"),
-                                Action("cloudformation", "List*"),
-                                Action("cloudformation", "UpdateStack"),
-                                Action("cloudformation", "ValidateTemplate"),
-                                Action("cloudformation", "ExecuteChangeSet"),
-                            ],
-                            Resource=[
-                                Sub(
-                                    "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Test-${AWS::StackName}*"),
-                                Sub(
-                                    "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/UAT-${AWS::StackName}*"),
-                                Sub(
-                                    "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Prod-${AWS::StackName}*"),
+                                Ref(approve_topic),
                             ]
                         ),
                         Statement(
@@ -271,7 +245,7 @@ def main():
                             ],
                             Resource=[
                                 Sub(
-                                    "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AWS::StackName}"),
+                                    "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/" + projectName),
                             ]
                         ),
                         Statement(
@@ -281,7 +255,7 @@ def main():
                                 Action("lambda", "InvokeFunction"),
                             ],
                             Resource=[
-                                "*"
+                                "*",
                             ]
                         ),
                         Statement(
@@ -313,17 +287,17 @@ def main():
             Image='aws/codebuild/python:3.3.6',
             Type='LINUX_CONTAINER',
         ),
-        Name=Sub("${AWS::StackName}"),
+        Name=projectName,
         ServiceRole=GetAtt(code_build_role, "Arn"),
     ))
 
     code_pipeline_dummy = template.add_resource(codepipeline.Pipeline(
         "CodePipelineDummy",
-        Name=Sub("${AWS::StackName}"),
+        Name="pipeline-" + projectName,
         RoleArn=GetAtt(code_pipeline_role, "Arn"),
         ArtifactStore=codepipeline.ArtifactStore(
             Type="S3",
-            Location=Ref(artifact_store_S3_bucket),
+            Location=Ref(artifact_store_s3_bucket),
         ),
         Stages=[
             codepipeline.Stages(
@@ -343,11 +317,11 @@ def main():
                             )
                         ],
                         Configuration={
-                            "Branch": Ref(branch_parameter),
-                            "Repo": Ref(repository_parameter),
+                            "Branch": Ref(github_branch_parameter),
+                            "Repo": Ref(github_repository_parameter),
                             "PollForSourceChanges": True,
                             "Owner": Ref(github_owner_parameter),
-                            "OAuthToken": Ref(oauth_token_parameter),
+                            "OAuthToken": Ref(github_oauth_token_parameter),
                         },
                         RunOrder="1",
                     ),
@@ -404,7 +378,7 @@ def main():
                             "UserParameters": Sub(json.dumps({
                                 "ActionMode": "CREATE_UPDATE",
                                 "ConfigPath": "Build::config.json",
-                                "StackName": "${AWS::StackName}-UAT",
+                                "StackName": projectName + "-UAT",
                                 "TemplatePath": "Build::dummy.json",
                             }))
                         },
@@ -417,27 +391,7 @@ def main():
                     ),
 
                     codepipeline.Actions(
-                        Name="ApproveUATStack",
-                        ActionTypeId=codepipeline.ActionTypeID(
-                            Category="Approval",
-                            Owner="AWS",
-                            Version="1",
-                            Provider="Manual",
-                        ),
-                        Configuration={
-                            "NotificationArn": Ref(approve_topic),
-                            "CustomData": "Approve once UAT has been completed.",
-                        },
-                        RunOrder="2",
-                    )
-                ]
-            ),
-
-            codepipeline.Stages(
-                Name="Production",
-                Actions=[
-                    codepipeline.Actions(
-                        Name="CreateProdChangeSet",
+                        Name="CreatePRODChangeSet",
                         InputArtifacts=[
                             codepipeline.InputArtifacts(
                                 Name="Build",
@@ -453,22 +407,27 @@ def main():
                             "FunctionName": "lambda-cfn-provider",
                             "UserParameters": Sub(json.dumps({
                                 "ActionMode": "CHANGE_SET_REPLACE",
-                                "ChangeSetName": "${AWS::StackName}-PROD-CHANGE-SET",
-                                "StackName": "${AWS::StackName}-PROD",
+                                "ChangeSetName": projectName + "-PROD-CHANGE-SET",
+                                "StackName": projectName + "-PROD",
                                 "TemplateConfiguration": "Build::config.json",
                                 "TemplatePath": "Build::dummy.json",
                             }))
                         },
                         OutputArtifacts=[
                             codepipeline.OutputArtifacts(
-                                Name="CreatedProdChangeSet",
+                                Name="CreatePRODChangeSet",
                             )
                         ],
-                        RunOrder="1",
+                        RunOrder="2",
                     ),
+                ]
+            ),
 
+            codepipeline.Stages(
+                Name="PROD-ApproveChangeSet",
+                Actions=[
                     codepipeline.Actions(
-                        Name="ApproveProdChangeSet",
+                        Name="ApprovePRODChangeSet",
                         ActionTypeId=codepipeline.ActionTypeID(
                             Category="Approval",
                             Owner="AWS",
@@ -479,11 +438,16 @@ def main():
                             "NotificationArn": Ref(approve_topic),
                             "CustomData": "Approve deployment in production.",
                         },
-                        RunOrder="2",
+                        RunOrder="1",
                     ),
+                ]
+            ),
 
+            codepipeline.Stages(
+                Name="PROD-ExecuteChangeSet",
+                Actions=[
                     codepipeline.Actions(
-                        Name="ExecuteProdChangeSet",
+                        Name="ExecutePRODChangeSet",
                         InputArtifacts=[
                             codepipeline.InputArtifacts(
                                 Name="Build",
@@ -499,19 +463,19 @@ def main():
                             "FunctionName": "lambda-cfn-provider",
                             "UserParameters": Sub(json.dumps({
                                 "ActionMode": "CHANGE_SET_EXECUTE",
-                                "ChangeSetName": "${AWS::StackName}-PROD-CHANGE-SET",
-                                "StackName": "${AWS::StackName}-PROD",
+                                "ChangeSetName": projectName + "-PROD-CHANGE-SET",
+                                "StackName": projectName + "-PROD",
                             }))
                         },
                         OutputArtifacts=[
                             codepipeline.OutputArtifacts(
-                                Name="ExecuteProdChangeSet",
+                                Name="ExecutePRODChangeSet",
                             )
                         ],
-                        RunOrder="3",
+                        RunOrder="1",
                     ),
                 ]
-            )
+            ),
         ]
     ))
 
@@ -519,40 +483,34 @@ def main():
 
     template.add_output([
         Output(
-            "DeployCfnFunction",
-            Description="Logical name of the Lambda function that is used by CodePipeline to deploy CFN templates",
-            Value="lambda-cfn-provider",
-            Export=Export(Sub("${AWS::StackName}-DeployCfnFunction")),
-        ),
-        Output(
             "ArtifactStoreS3Bucket",
             Description="ResourceName of the S3 bucket containg the artifacts of the pipeline(s)",
-            Value=Ref(artifact_store_S3_bucket),
-            Export=Export(Sub("${AWS::StackName}-ArtifactS3Bucket")),
+            Value=Ref(artifact_store_s3_bucket),
+            Export=Export(projectName + "-ArtifactS3Bucket"),
         ),
         Output(
             "ArtifactStoreS3BucketArn",
             Description="Arn of the S3 bucket containg the artifacts of the pipeline(s)",
-            Value=GetAtt(artifact_store_S3_bucket, "Arn"),
-            Export=Export(Sub("${AWS::StackName}-ArtifactS3BucketArn")),
+            Value=GetAtt(artifact_store_s3_bucket, "Arn"),
+            Export=Export(projectName + "-ArtifactS3BucketArn"),
         ),
         Output(
             "CodeBuildRole",
             Description="Logical name of the role that is used by the CodeBuild projects in the CodePipeline",
             Value=Ref(code_build_role),
-            Export=Export(Sub("${AWS::StackName}-CodeBuildRole")),
+            Export=Export(projectName + "-CodeBuildRole"),
         ),
         Output(
             "CloudFormationRoleArn",
             Description="Arn of the S3 bucket containing the artifacts of the pipeline(s)",
             Value=GetAtt(cloud_formation_role, "Arn"),
-            Export=Export(Sub("${AWS::StackName}-CloudFormationRoleArn")),
+            Export=Export(projectName + "-CloudFormationRoleArn"),
         ),
         Output(
             "CodePipelineRoleArn",
             Description="Logical name of the role that is used by the CodePipeline",
             Value=GetAtt(code_pipeline_role, "Arn"),
-            Export=Export(Sub("${AWS::StackName}-CodePipelineRoleArn")),
+            Export=Export(projectName + "-CodePipelineRoleArn"),
         )
     ])
 
