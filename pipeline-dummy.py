@@ -245,7 +245,7 @@ def main():
                             ],
                             Resource=[
                                 Sub(
-                                    "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/" + projectName),
+                                    "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/codebuild-" + projectName),
                             ]
                         ),
                         Statement(
@@ -287,7 +287,7 @@ def main():
             Image='aws/codebuild/python:3.3.6',
             Type='LINUX_CONTAINER',
         ),
-        Name=projectName,
+        Name="codebuild-" + projectName,
         ServiceRole=GetAtt(code_build_role, "Arn"),
     ))
 
